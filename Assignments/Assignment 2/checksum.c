@@ -76,7 +76,7 @@ int main(int argc, char *argv[])
     }
 
     // Load buffer with nbytes random bytes
-    for (i=0; i<nbytes; i++)  {
+    for (int i = 0; i < nbytes; i++)  {
         buff[i] = (uint8_t)(rand() % 256);
     }
 
