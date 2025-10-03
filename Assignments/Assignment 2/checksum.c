@@ -29,7 +29,7 @@
 //=============================================================================
 //=  Compute Internet Checksum for count bytes beginning at location addr     =
 //=============================================================================
-uint16_t checksum(char *addr, uint32_t count)
+uint16_t checksum(char *addr, uint32_t count) 
 {
     register uint32_t sum = 0;
 
@@ -57,33 +57,33 @@ uint16_t checksum(char *addr, uint32_t count)
 //====================================================================
 // = Test code to demostrate how the checksum works
 //====================================================================
-int main(int argc, char *argv[])
-{
+// int main(int argc, char *argv[])
+// {
 
-    uint8_t   buff[BUFFER_LEN];
-    uint16_t  cksum = 0;
-    int       nbytes;
+//     uint8_t   buff[BUFFER_LEN];
+//     uint16_t  cksum = 0;
+//     int       nbytes;
 
-    if (argc != 2) {
-        printf("Error:: Usage: %s <nbytes> \n", argv[0]);
-	return -1;
-    }
+//     if (argc != 2) {
+//         printf("Error:: Usage: %s <nbytes> \n", argv[0]);
+// 	return -1;
+//     }
  
-    nbytes = atoi(argv[1]);
-    if ((nbytes <= 0) || (nbytes > BUFFER_LEN)) {
-        printf("Invalid number of bytes: %d \n", nbytes);
-        return -1;
-    }
+//     nbytes = atoi(argv[1]);
+//     if ((nbytes <= 0) || (nbytes > BUFFER_LEN)) {
+//         printf("Invalid number of bytes: %d \n", nbytes);
+//         return -1;
+//     }
 
-    // Load buffer with nbytes random bytes
-    for (int i = 0; i < nbytes; i++)  {
-        buff[i] = (uint8_t)(rand() % 256);
-    }
+//     // Load buffer with nbytes random bytes
+//     for (int i = 0; i < nbytes; i++)  {
+//         buff[i] = (uint8_t)(rand() % 256);
+//     }
 
-    // Compute the 16-bit checksum
-    cksum = checksum(buff, nbytes);
-    printf("Checksum = %04X \n", cksum);
+//     // Compute the 16-bit checksum
+//     cksum = checksum(buff, nbytes);
+//     printf("Checksum = %04X \n", cksum);
 
-    return 0;
-}
+//     return 0;
+// }
 
