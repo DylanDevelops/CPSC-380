@@ -50,7 +50,6 @@ int insert_item(BUFFER_ITEM item) {
     // tell semaphore that there is now a newly full spot
     sem_post(&full);
 
-    fprintf(stdout, "Success\n");
     // return 0 since there were no errors
     return 0;
 }
@@ -79,7 +78,6 @@ int remove_item(BUFFER_ITEM* item) {
     // tell semaphore there is another empty slot
     sem_post(&empty);
 
-    fprintf(stdout, "Success");
     // return 0 since there were no errors
     return 0;
 }
