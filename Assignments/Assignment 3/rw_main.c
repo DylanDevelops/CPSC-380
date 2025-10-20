@@ -303,8 +303,10 @@ static void handle_sigint(int sig) {
 }
 
 static void* thread_timer(void* arg) {
+    // sleep for this amount of seconds
     sleep(*(int*)arg);
     
+    // set stop flag and wake all threads
     stop_flag = 1;
     rwlog_wake_all();
 
@@ -314,14 +316,17 @@ static void* thread_timer(void* arg) {
 int rwlog_begin_write(void) {
     if(!monitor) return -1;
 
+    // lock mutex
     pthread_mutex_lock(&monitor->lock);
-    
+    // update number of waiting writers
     monitor->waiting_writers++;
 
+    // check if any active readers or writers
     while(monitor->active_readers > 0 || monitor->active_writers > 0) {
+        // wait on writer condition variable
         pthread_cond_wait(&monitor->writer_cond, &monitor->lock);
 
-        if (stop_flag) {
+        if (stop_flag) { // check if stop flag to exit if needed
             monitor->waiting_writers--;
             pthread_mutex_unlock(&monitor->lock);
             return -1;
@@ -433,18 +438,20 @@ static void* write_thread(void* arg) {
 int rwlog_begin_read(void) {
     if(!monitor) return -1;
 
+    // lock mutex
     pthread_mutex_lock(&monitor->lock);
 
     // while there is an active writer or multiple waiting, wait.
     while((monitor->active_writers > 0 || monitor->waiting_writers > 0)) {
         pthread_cond_wait(&monitor->reader_cond, &monitor->lock);
 
-        if(stop_flag) {
+        if(stop_flag) { // exit if there is a stop flag
             pthread_mutex_unlock(&monitor->lock);
             return -1;
         }
     }
 
+    // update active readers count
     monitor->active_readers++;
     pthread_mutex_unlock(&monitor->lock); // unlock
     
@@ -454,8 +461,8 @@ int rwlog_begin_read(void) {
 int rwlog_end_read(void) {
     if(!monitor) return -1;
 
+    // lock mutex and decrement number of active readers
     pthread_mutex_lock(&monitor->lock);
-
     monitor->active_readers--;
 
     // if no readers remain, and there are writers waiting, start one to avoid starvation
@@ -463,6 +470,7 @@ int rwlog_end_read(void) {
         pthread_cond_signal(&monitor->writer_cond);
     }
 
+    // unlock mutex
     pthread_mutex_unlock(&monitor->lock); // unlock
 
     return 0;
@@ -500,7 +508,6 @@ static void* read_thread(void* arg) {
     // variables for thread
     reader_data_t* data = (reader_data_t*)arg;
     struct timespec start, end;
-    uint64_t last_seq = 0; // last seen sequence number
 
     // snapshot buffer
     rwlog_entry_t* buf = malloc(monitor->capacity * sizeof(rwlog_entry_t));
@@ -523,12 +530,11 @@ static void* read_thread(void* arg) {
         ssize_t count = rwlog_snapshot(buf, monitor->capacity);
 
         // monotonicity check
-        for (ssize_t i = 0; i < count; ++i) {
-            if (buf[i].seq < last_seq) {
+        for (ssize_t i = 1; i < count; ++i) {
+            if (buf[i].seq < buf[i-1].seq) {
                 fprintf(stderr, "Error: Reader %d found non-monotonic sequence number %llu after %llu\n",
-                        data->id, (unsigned long long)buf[i].seq, (unsigned long long)last_seq);
+                        data->id, (unsigned long long)buf[i].seq, (unsigned long long)buf[i-1].seq);
             }
-            last_seq = buf[i].seq;
         }
 
         // end read
@@ -549,6 +555,64 @@ static void* read_thread(void* arg) {
 
     free(buf);
     return NULL;
+}
+
+// dumps the log to a csv file
+static void dump_log_to_csv() {
+    if (!monitor) return;
+
+    FILE* file = fopen("log.csv", "w");
+
+    if (!file) {
+        fprintf(stderr, "Error opening or creating log.csv for writing\n");
+        return;
+    } else {
+        // create csv header
+        fprintf(file, "seq,tid,timestamp,msg\n");
+
+        // begin read
+        if (rwlog_begin_read() != 0) {
+            fprintf(stderr, "Error beginning read for CSV dump\n");
+            fclose(file);
+            return;
+        }
+
+        // create buffer for one snapshot
+        rwlog_entry_t* buf = malloc(monitor->capacity * sizeof(rwlog_entry_t));
+        // check successful allocation
+        if (!buf) {
+            fprintf(stderr, "Error allocating memory for snapshot buffer\n");
+            fclose(file);
+            return;
+        }
+
+        // take snapshot
+        ssize_t count = rwlog_snapshot(buf, monitor->capacity);
+        if (count < 0) {
+            fprintf(stderr, "Error taking a snapshot of the log\n");
+            free(buf);
+            fclose(file);
+            return;
+        }
+
+        // write each entry
+        for (ssize_t i = 0; i < count; ++i) {
+            fprintf(file, "%llu,%lu,%llu.%09lu,%s\n",
+                (unsigned long long)buf[i].seq,
+                (unsigned long)buf[i].tid,
+                (unsigned long long)buf[i].ts.tv_sec,
+                (unsigned long)buf[i].ts.tv_nsec,
+                buf[i].msg);
+        }
+        free(buf); // free buffer when done
+
+        // end read
+        rwlog_end_read();
+
+    }
+
+    // close file when done
+    fclose(file);
 }
 
 int main(int argc, char **argv) 
@@ -596,7 +660,7 @@ int main(int argc, char **argv)
     }
 
     // iterate through all to create pthreads
-    for (int i = 0; i < cfg.writers; i++) {
+    for (int i = 0; i < cfg.writers; ++i) {
         writer_data[i].id = i;
         writer_data[i].batch_size = cfg.writer_batch;
         writer_data[i].sleep_us = cfg.wr_us;
@@ -630,7 +694,7 @@ int main(int argc, char **argv)
 
 
     // iterate through all to create pthreads
-    for (int i = 0; i < cfg.readers; i++) {
+    for (int i = 0; i < cfg.readers; ++i) {
         reader_data[i].id = i;
         reader_data[i].sleep_us = cfg.rd_us;
         reader_data[i].total_read_time = 0.0;
@@ -647,20 +711,49 @@ int main(int argc, char **argv)
     /* Join reader/writer threads and timer thread */
     pthread_join(timer_thread, NULL);
     // iterate and join all writer threads
-    for (int i = 0; i < cfg.writers; i++) {
+    for (int i = 0; i < cfg.writers; ++i) {
         pthread_join(writerThreads[i], NULL);
     }
 
     // iterate and join all reader threads
-    for (int i = 0; i < cfg.readers; i++) {
+    for (int i = 0; i < cfg.readers; ++i) {
         pthread_join(readerThreads[i], NULL);
     }
 	 
     /* Optional: dump the final log to CSV for inspection/grading. */
+    if (cfg.dump_csv) {
+        dump_log_to_csv();
+    }
 	 
     /* Compute averages only (avg reader wait, avg writer wait, avg throughput) */
-	
-	 
+    // get total writer stats
+    double total_writer_wait = 0.0;
+    int total_writes = 0;
+    for (int i = 0; i < cfg.writers; ++i) {
+        total_writer_wait += writer_data[i].total_wait_time;
+        total_writes += writer_data[i].num_writes;
+    }
+
+    // get total reader stats
+    double total_reader_time = 0.0;
+    int total_reads = 0;
+    for (int i = 0; i < cfg.readers; ++i) {
+        total_reader_time += reader_data[i].total_read_time;
+        total_reads += reader_data[i].num_reads;
+    }
+
+    // print averages
+    double avg_writer_wait_ms = (total_writes > 0) ? (total_writer_wait / total_writes) * 1000.0 : 0.0;
+    double avg_reader_time_ms = (total_reads > 0) ? (total_reader_time / total_reads) * 1000.0 : 0.0;
+    double throughput = (double)total_writes / (double)cfg.seconds;
+
+    // print stats
+    fprintf(stdout, "--- Stats ---\n");
+    fprintf(stdout, "Average writer wait time: %.3fms\n", avg_writer_wait_ms);
+    fprintf(stdout, "Average reader critical-section time: %.3fms\n", avg_reader_time_ms);
+    fprintf(stdout, "Total log entries written: %d\n", total_writes);
+    fprintf(stdout, "Throughput: %.2f entries/sec\n", throughput);
+
     /* Cleanup heap and monitor resources */
     free(writer_data);
     free(reader_data);
