@@ -304,7 +304,15 @@ static void handle_sigint(int sig) {
 
 static void* thread_timer(void* arg) {
     // sleep for this amount of seconds
-    sleep(*(int*)arg);
+    int seconds = *(int*)arg;
+
+    // check for stop flag every half second
+    for (int i = 0; i < seconds * 2; ++i) {
+        if (stop_flag) {
+            break; 
+        }
+        usleep(500000); // 500ms sleep
+    }
     
     // set stop flag and wake all threads
     stop_flag = 1;
@@ -634,6 +642,7 @@ int main(int argc, char **argv)
  
     /* Install SIGINT and start wall-clock timer thread */
 	signal(SIGINT, handle_sigint);
+
     // create timer thread and check for error
     pthread_t timer_thread;
     if (pthread_create(&timer_thread, NULL, thread_timer, &cfg.seconds) != 0) {
@@ -747,12 +756,14 @@ int main(int argc, char **argv)
     double avg_reader_time_ms = (total_reads > 0) ? (total_reader_time / total_reads) * 1000.0 : 0.0;
     double throughput = (double)total_writes / (double)cfg.seconds;
 
-    // print stats
-    fprintf(stdout, "--- Stats ---\n");
-    fprintf(stdout, "Average writer wait time: %.3fms\n", avg_writer_wait_ms);
-    fprintf(stdout, "Average reader critical-section time: %.3fms\n", avg_reader_time_ms);
-    fprintf(stdout, "Total log entries written: %d\n", total_writes);
-    fprintf(stdout, "Throughput: %.2f entries/sec\n", throughput);
+    // print stats if not stopped by signal
+    if (!stop_flag) {
+        fprintf(stdout, "--- Stats ---\n");
+        fprintf(stdout, "Average writer wait time: %.3fms\n", avg_writer_wait_ms);
+        fprintf(stdout, "Average reader critical-section time: %.3fms\n", avg_reader_time_ms);
+        fprintf(stdout, "Total log entries written: %d\n", total_writes);
+        fprintf(stdout, "Throughput: %.2f entries/sec\n", throughput);
+    }
 
     /* Cleanup heap and monitor resources */
     free(writer_data);
