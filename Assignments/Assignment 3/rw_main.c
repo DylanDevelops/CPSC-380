@@ -756,14 +756,12 @@ int main(int argc, char **argv)
     double avg_reader_time_ms = (total_reads > 0) ? (total_reader_time / total_reads) * 1000.0 : 0.0;
     double throughput = (double)total_writes / (double)cfg.seconds;
 
-    // print stats if not stopped by signal
-    if (!stop_flag) {
-        fprintf(stdout, "--- Stats ---\n");
-        fprintf(stdout, "Average writer wait time: %.3fms\n", avg_writer_wait_ms);
-        fprintf(stdout, "Average reader critical-section time: %.3fms\n", avg_reader_time_ms);
-        fprintf(stdout, "Total log entries written: %d\n", total_writes);
-        fprintf(stdout, "Throughput: %.2f entries/sec\n", throughput);
-    }
+    // print stats
+    fprintf(stdout, "--- Stats ---\n");
+    fprintf(stdout, "Average writer wait time: %.3fms\n", avg_writer_wait_ms);
+    fprintf(stdout, "Average reader critical-section time: %.3fms\n", avg_reader_time_ms);
+    fprintf(stdout, "Total log entries written: %d\n", total_writes);
+    fprintf(stdout, "Throughput: %.2f entries/sec\n", throughput);
 
     /* Cleanup heap and monitor resources */
     free(writer_data);
