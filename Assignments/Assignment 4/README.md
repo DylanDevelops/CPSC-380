@@ -21,7 +21,7 @@ Below are all the sources that we used when coding this project.
 
 ## RUNNING INSTRUCTIONS
 
-To compile, use `gcc -o schedsim schedsim.c -lpthread`. This specifies the output file to include pthreads and names the output as `schedsim`.
+To compile, use `gcc -o schedsim schedsim.c -pthread`. This specifies the output file to include pthreads and names the output as `schedsim`.
 
 To run the program, use `./schedsim [--fcfs|--sjf|--priority|--rr] --input <file> [--quantum <num>]` where the flags are as follows:
 
