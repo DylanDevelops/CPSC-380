@@ -293,9 +293,120 @@ void compact()
     printf("Compact.....\n");
 }
 
-void display_stats()
-{
-    printf("Displaying stats\n");
+void display_stats(int argc, char* argv[]) {
+    int visual = 0;
+    int blockValue = 0;
+    char visArr[50];
+    for (int i = 0; i < 50; ++i) {
+        visArr[i] = '.';
+    }
+
+    // if -v visual 
+    if (argc == 2) {
+        if (strcmp(argv[1], "-v") == 0) {
+            visual = 1;
+            blockValue = MAX / 50;
+        }
+        else {
+            printf("[error] Incorrect usage of STAT command. Try: %s -v", argv[0]);
+        }
+    }
+
+    // print allocated memory stats
+    printf("\n~ Allocated Memory ~\n");
+    
+    MemNode* curr = head;
+    int totalAllocated = 0;
+    int holeNum = 0;
+    int largestHole = 0;
+    
+    while (curr != NULL) { // print all processes
+        int size = curr->end - curr->start + 1;
+        totalAllocated += size;
+        printf("Process %s: Start = %d KB, End = %d KB, Size = %i KB\n", curr->process, curr->start, curr->end, size);
+
+        // if visualization is enabled, keep track of it
+        if (visual == 1) {
+            // blocks for visualization
+            int b_start = curr->start / blockValue;
+            int b_end = curr->end / blockValue;
+
+            for (int i = b_start; i <= b_end; ++i) {
+                visArr[i] = '#'; 
+            }
+        }
+        
+        curr = curr->next;
+    }
+
+    // print free memory stats
+    printf("\n~ Free Memory ~\n");
+    // check if no head
+    if (head == NULL) {
+        printf("Hole 1: Start = %d KB, End = %d KB, Size = %d KB\n", 0, MAX - 1, MAX);
+        holeNum = 1;
+        largestHole = MAX;
+    } else { // if there is a head
+        // check before head
+        if (head->start > 0) {
+            int firstHoleSize = head->start;
+            printf("Hole %d: Start = %d KB, End = %d KB, Size = %d KB\n", ++holeNum, 0, head->start - 1, firstHoleSize);
+            if(firstHoleSize > largestHole){
+                largestHole = firstHoleSize;
+            }
+        }
+        
+        // iterate through all mem nodes after head
+        int last_end = head->end;
+        curr = head->next;
+        while (curr != NULL) {
+            int holeSize = curr->start - last_end - 1;
+            if (holeSize > 0) {
+                printf("Hole %d: Start = %d KB, End = %d KB, Size = %d KB\n", ++holeNum, last_end + 1, curr->start - 1, holeSize);
+                if (holeSize > largestHole) largestHole = holeSize;
+            }
+
+            last_end = curr->end;
+            curr = curr->next;
+        }
+
+        // get last hole size if exists
+        if (last_end < (MAX - 1)) {
+            printf("Hole %d: Start = %d KB, End = %d KB, Size = %d KB\n", ++holeNum, last_end + 1, MAX - 1, (MAX - 1 - last_end));
+        }
+    }
+    
+    // print summary
+    printf("\n~ Summary ~\n");
+    
+    // get the variables we need here
+    int totalFree = MAX - totalAllocated;
+    float externalFrag = (totalFree > 0) ? (1.0 - (float)largestHole / totalFree) * 100 : 0;
+    int avgHoleSize = (holeNum > 0) ? (totalFree / holeNum) : 0;
+    
+    printf("Total allocated: %d KB\n", totalAllocated);
+    printf("Total free: %d KB\n", totalFree);
+    printf("Largest hole: %d KB\n", largestHole);
+    printf("External fragmentation %.2f%%\n", externalFrag);
+    printf("Average hole size: %d KB\n", avgHoleSize);
+
+    if(visual == 1) {
+        // visualization (optional)
+        printf("\n~ Visualization / Memory Map Output ~\n");
+        printf("[");
+        for (int i = 0; i < 50; ++i) {
+            printf("%c", visArr[i]);
+        }
+        printf("]\n");
+
+        // print labels
+        printf("^0 KB");
+        for (int i = 0; i < 46; ++i) {
+            printf(" ");
+        }
+        printf("^%d KB", MAX);
+        printf("\n");
+    }
 }
 
 int main (int argc, char* argv[]) {
@@ -305,7 +416,7 @@ int main (int argc, char* argv[]) {
     }
 
     // store the max value that they passed in
-    MAX = atoi(argv[0]);
+    MAX = atoi(argv[1]);
 
     char* args[MAX_LINE/2 + 1]; /* command line arguments */
     int should_run = 1; /* flag to determine when to exit program */
@@ -352,24 +463,13 @@ int main (int argc, char* argv[]) {
             exit(0);
         }
 
-        // fork to create a child
-        pid = fork();
-        
-        // handle depending on process
-        if (pid < 0) {
-            // if error occurs while forking (erectile dysfunction)
-            printf("[ERROR] Command failed to run. Please try again.");
-        } else if (pid == 0) { // successful fork (and it's a child process)
-            // execute command as a child
-            // execvp(args[0], args);
-            if (strcmp(args[0], "RQ") == 0) request_memory(i, args);
-            else if (strcmp(args[0], "RL") == 0) release_memory(i, args);
-            else if (strcmp(args[0], "C") == 0) compact();
-            else if (strcmp(args[0], "STAT") == 0) display_stats();
-            exit(0); // child exits
-        } else {
-            // parent process waits for child process
-            wait(NULL);
+        // handle commands
+        if (strcmp(args[0], "RQ") == 0) request_memory(i, args);
+        else if (strcmp(args[0], "RL") == 0) release_memory(i, args);
+        else if (strcmp(args[0], "C") == 0) compact();
+        else if (strcmp(args[0], "STAT") == 0) display_stats(i, args);
+        else {
+            printf("[error] Unknown command: %s\n", args[0]);
         }
     }
 
