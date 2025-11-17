@@ -556,6 +556,7 @@ void simulate(int argc, char* argv[]) {
         else if (strcmp(args[0], "RL") == 0) release_memory(i, args);
         else if (strcmp(args[0], "C") == 0) compact();
         else if (strcmp(args[0], "STAT") == 0) display_stats(i, args);
+        // leaving the "X" command out since we assume this should not be run
         else {
             printf("[error] Unknown command in file: %s\n", args[0]);
             counter--; // cancel out counter if unknown command
