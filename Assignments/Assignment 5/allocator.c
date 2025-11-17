@@ -405,7 +405,7 @@ void display_stats(int argc, char* argv[]) {
             blockValue = MAX / 50;
         }
         else {
-            printf("[error] Incorrect usage of STAT command. Try: %s -v\n", argv[0]);
+            printf("[error] Incorrect usage of STAT command. Usage: %s -v\n", argv[0]);
             return;
         }
     }
@@ -507,9 +507,70 @@ void display_stats(int argc, char* argv[]) {
     }
 }
 
+void simulate(int argc, char* argv[]) {
+    if (argc != 2) {
+        printf("[error] Incorrect usage of SIM command. Usage: SIM <filename>\n");
+        return;
+    }
+
+    // open file
+    FILE* inputFile = fopen(argv[1], "r");
+
+    // If file can't be found, throw an error
+    if(inputFile == NULL) {
+        printf("[error] No file found. Please try again with a valid file.\n");
+        return;
+    }
+
+    // init variables
+    char input[MAX_LINE];
+    char* tok;
+    char* args[MAX_LINE/2 + 1];
+    int counter = 0;
+
+    // read in file
+    while (fgets(input, MAX_LINE, inputFile)) {
+        // trim input newline
+        input[strcspn(input, "\n")] = 0;
+
+        // skip empty lines
+        if (strlen(input) == 0) continue;
+
+        // separate out words from the input
+        tok = strtok(input, " ");
+        
+        int i = 0;
+        while(tok != NULL) { // iterate until no more args
+            args[i] = tok;
+            tok = strtok(NULL, " ");
+            ++i;
+        }
+        args[i] = NULL; // ends the args array with null
+
+        if (i < 1) continue; // if no command
+
+        printf("[executing] %s\n", args[0]);
+
+        // execute command based on first token
+        if (strcmp(args[0], "RQ") == 0) request_memory(i, args);
+        else if (strcmp(args[0], "RL") == 0) release_memory(i, args);
+        else if (strcmp(args[0], "C") == 0) compact();
+        else if (strcmp(args[0], "STAT") == 0) display_stats(i, args);
+        else {
+            printf("[error] Unknown command in file: %s\n", args[0]);
+            counter--; // cancel out counter if unknown command
+        }
+        counter++;
+    }
+
+    // close file and print successful output
+    fclose(inputFile);
+    printf("[success] Simulated (%d) commands.\n", counter);
+}
+
 int main (int argc, char* argv[]) {
     if(argc != 2) {
-        printf("Incorrect usage. Try: %s <MAX_SIZE>\n", argv[0]);
+        printf("Incorrect usage. Usage: %s <MAX_SIZE>\n", argv[0]);
         return -1; /// return that there was an error
     }
 
@@ -577,6 +638,7 @@ int main (int argc, char* argv[]) {
         else if (strcmp(args[0], "RL") == 0) release_memory(i, args);
         else if (strcmp(args[0], "C") == 0) compact();
         else if (strcmp(args[0], "STAT") == 0) display_stats(i, args);
+        else if(strcmp(args[0], "SIM") == 0) simulate(i, args);
         else {
             printf("[error] Unknown command: %s\n", args[0]);
         }

@@ -16,6 +16,9 @@ We have not observed any errors from our testing.
 
 Below are all the sources that we used when coding this project.
 
+- [File Handling](https://www.w3schools.com/c/c_files_read.php)
+- [fopen](https://man7.org/linux/man-pages/man3/fopen.3.html)
+- [strdup](https://man7.org/linux/man-pages/man3/strdup.3.html)
 - 
 
 ## RUNNING INSTRUCTIONS
