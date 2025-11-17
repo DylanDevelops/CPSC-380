@@ -29,7 +29,13 @@ MemNode* createNode(char* process, int start, int end) {
         fprintf(stderr, "Failed to allocate memory for Node\n");
         exit(EXIT_FAILURE);
     }
-    n->process = process;
+    // allocate and copy string
+    n->process = strdup(process);  
+    if (n->process == NULL) { // if failed
+        fprintf(stderr, "Failed to allocate memory for process name of node\n");
+        free(n);
+        exit(EXIT_FAILURE);
+    }
     n->start = start;
     n->end = end;
     n->next = NULL;
@@ -89,7 +95,7 @@ int insertUsingFirstFit(char* process, int size) {
         // advance curr
         curr = curr->next;
 
-    } while (curr->next != NULL);
+    } while (curr != NULL);
 
     return -1; // no adequately sized hole found because our "process" is too big
 }
@@ -240,10 +246,29 @@ int insertUsingWorstFit(char* process, int size) {
     return 0;
 }
 
+int processIdAlreadyExists(char* id) {
+    // if null return false
+    if(id == NULL) return 0;
+
+    // iterate through nodes
+    MemNode* curr = head;
+    while(curr != NULL) {
+        // if process name is the same and not null return true
+        if(curr->process != NULL && strcmp(curr->process, id) == 0) {
+            return 1;
+        }
+
+        curr = curr->next;
+    }
+    
+    // if it gets to here without being true, return false
+    return 0;
+}
+
 void request_memory(int argc, char* argv[])
 {
     if (argc != 4) { // has to have 4 args (including the 'RQ')
-        printf("Invalid number of arguments. Usage: RQ <process> <size> <F|B|W>\n");
+        printf("[error] Invalid number of arguments. Usage: RQ <process> <size> <F|B|W>\n");
         return;
     }
     
@@ -251,6 +276,11 @@ void request_memory(int argc, char* argv[])
     char* process = argv[1]; // e.g. P0
     int size = atoi(argv[2]); // e.g. 40000
     char* strategy = argv[3]; // e.g. F | B | W
+
+    if(processIdAlreadyExists(process)) {
+        printf("[error] Process ID already exists. Try a different name.\n");
+        return;
+    }
 
     // check that a valid size is given
     if(size <= 0) {
@@ -283,9 +313,51 @@ void request_memory(int argc, char* argv[])
 void release_memory(int argc, char* argv[])
 {
     if (argc != 2) {
-        printf("Invalid number of arguments. Usage: RL <process>\n");
+        printf("[error] Invalid number of arguments. Usage: RL <process>\n");
+        return;
     }
-    printf("Release Memory\n");
+
+    // if no processes
+    if (head == NULL) {
+        printf("[error] No processes exist.\n");
+        return;
+    }
+    
+    // process var
+    char* process = argv[1];
+
+    // if head process matches
+    if (strcmp(head->process, process) == 0) {
+        MemNode* toBeDeleted = head;
+        head = head->next;
+        free(toBeDeleted->process);
+        free(toBeDeleted);
+        printf("[success] Released process %s from memory.\n", process);
+        return;
+    }
+
+    // release given process from memory
+    MemNode* curr = head;
+    while (curr->next != NULL) {
+        // if process ID matches
+        if (strcmp(curr->next->process, process) == 0) {
+            // set as temporary variables
+            MemNode* toBeDeleted = curr->next;
+            MemNode* newNext = curr->next->next;
+            // reset curr->next
+            curr->next = newNext;
+            free(toBeDeleted->process);
+            free(toBeDeleted); // free memory of the next
+            printf("[success] Released process %s from memory.\n", process);
+            return;
+        }
+        // update current one to next in list
+        curr = curr->next;
+    }
+
+    // TODO: merge holes if possible upon release
+    
+    printf("[error] Unable to release process %s. Process was not found. Use STAT to see running processes.\n", argv[1]);
 }
 
 void compact()
@@ -306,9 +378,10 @@ void display_stats(int argc, char* argv[]) {
         if (strcmp(argv[1], "-v") == 0) {
             visual = 1;
             blockValue = MAX / 50;
+            // TODO: THROW ERROR IF INVALID ARGUMENT
         }
         else {
-            printf("[error] Incorrect usage of STAT command. Try: %s -v", argv[0]);
+            printf("[error] Incorrect usage of STAT command. Try: %s -v\n", argv[0]);
         }
     }
 
@@ -460,6 +533,7 @@ int main (int argc, char* argv[]) {
 
         // Handle exit command ("X") from user
         if(strcmp(args[0], "X") == 0) {
+            // TODO: free all linked list contents from memory
             exit(0);
         }
 
