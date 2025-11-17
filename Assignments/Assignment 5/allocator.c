@@ -355,14 +355,39 @@ void release_memory(int argc, char* argv[])
         curr = curr->next;
     }
 
-    // TODO: merge holes if possible upon release
-    
     printf("[error] Unable to release process %s. Process was not found. Use STAT to see running processes.\n", argv[1]);
 }
 
 void compact()
 {
-    printf("Compact.....\n");
+    // return if no head process
+    if (head == NULL) {
+        printf("[error] No processes exist.\n");
+        return;
+    }
+
+    // initialize variables for loop
+    int last_end = -1;
+
+    // iterate through all processes
+    MemNode* curr = head;
+    while (curr != NULL) {
+        // if next process is not right after the current one
+        if (curr->start != last_end + 1) {
+            // relocate process
+            int offset = curr->end - curr->start;
+            curr->start = last_end + 1;
+            curr->end = curr->start + offset;
+        }
+
+        // update curr to next process and update end variable
+        last_end = curr->end;
+        curr = curr->next;
+    }
+
+    printf("[success] Compacted all processes.\n");
+
+    return;
 }
 
 void display_stats(int argc, char* argv[]) {
@@ -378,10 +403,10 @@ void display_stats(int argc, char* argv[]) {
         if (strcmp(argv[1], "-v") == 0) {
             visual = 1;
             blockValue = MAX / 50;
-            // TODO: THROW ERROR IF INVALID ARGUMENT
         }
         else {
             printf("[error] Incorrect usage of STAT command. Try: %s -v\n", argv[0]);
+            return;
         }
     }
 
@@ -533,7 +558,17 @@ int main (int argc, char* argv[]) {
 
         // Handle exit command ("X") from user
         if(strcmp(args[0], "X") == 0) {
-            // TODO: free all linked list contents from memory
+            // free all linked list contents from memory
+            MemNode* curr = head;
+            while (curr != NULL) {
+                // free process
+                free(curr->process);
+                // save next process
+                MemNode* temp = curr->next;
+                // free current process
+                free(curr);
+                curr = temp;
+            }
             exit(0);
         }
 
